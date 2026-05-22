@@ -2,7 +2,7 @@ name: Build
 
 on:
   push:
-    branches: ["master", "cicd-setup"]
+    branches: ["master"]
     tags: ["v*"]
   workflow_dispatch:
 
@@ -120,4 +120,5 @@ jobs:
           gh release create "${{ github.ref_name }}" \
             release-assets/* \
             --title "${{ github.ref_name }}" \
-            --generate-notes
+            --generate-notes \
+            --verify-tag
