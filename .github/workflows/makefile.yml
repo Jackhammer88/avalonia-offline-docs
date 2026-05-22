@@ -3,9 +3,13 @@ name: Build
 on:
   push:
     branches: ["master", "cicd-setup"]
+    tags: ["v*"]
   pull_request:
     branches: ["master"]
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -72,3 +76,50 @@ jobs:
           name: ${{ matrix.artifact_name }}
           path: ${{ matrix.artifact_path }}
           if-no-files-found: error
+  release:
+    name: Publish release
+    needs: build
+    runs-on: ubuntu-latest
+
+    # Релиз публикуем только при push тега v*
+    if: startsWith(github.ref, 'refs/tags/v')
+
+    steps:
+      - name: Download Linux artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: avalonia-docs-linux
+          path: release-assets
+
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: avalonia-docs-windows
+          path: release-assets
+
+      - name: Check release assets
+        run: |
+          echo "Release assets:"
+          find release-assets -type f -maxdepth 2 -print
+
+          appimage_count="$(find release-assets -type f -name '*.AppImage' | wc -l)"
+          exe_count="$(find release-assets -type f -name '*.exe' | wc -l)"
+
+          if [ "$appimage_count" -lt 1 ]; then
+            echo "Missing Linux AppImage"
+            exit 1
+          fi
+
+          if [ "$exe_count" -lt 1 ]; then
+            echo "Missing Windows exe"
+            exit 1
+          fi
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ github.ref_name }}" \
+            release-assets/* \
+            --title "${{ github.ref_name }}" \
+            --generate-notes
