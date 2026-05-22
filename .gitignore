@@ -1,0 +1,4 @@
+offline-app/node_modules
+offline-app/dist
+offline-app/build
+offline-app/build-info.json
