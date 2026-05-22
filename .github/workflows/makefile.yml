@@ -1,0 +1,68 @@
+name: Build
+
+on:
+  push:
+    branches: ["master", "main"]
+  pull_request:
+    branches: ["master", "main"]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: linux
+            os: ubuntu-latest
+            make_target: linux
+            artifact_name: avalonia-docs-linux
+            artifact_path: |
+              offline-app/dist/*.AppImage
+
+          - target: windows
+            os: ubuntu-latest
+            make_target: win
+            artifact_name: avalonia-docs-windows
+            artifact_path: |
+              offline-app/dist/*.exe
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            avalonia-docs/package-lock.json
+            offline-app/package-lock.json
+
+      - name: Install Linux packages
+        if: matrix.target == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libfuse2
+
+      - name: Install Windows cross-build packages
+        if: matrix.target == 'windows'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wine64 mono-devel
+
+      - name: Build
+        run: make ${{ matrix.make_target }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: ${{ matrix.artifact_path }}
+          if-no-files-found: error
