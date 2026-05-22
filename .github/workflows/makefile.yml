@@ -59,8 +59,9 @@ jobs:
       - name: Install Windows cross-build packages
         if: matrix.target == 'windows'
         run: |
+          sudo dpkg --add-architecture i386
           sudo apt-get update
-          sudo apt-get install -y wine64 mono-devel
+          sudo apt-get install -y wine64 wine32:i386 mono-devel
 
       - name: Build
         run: make ${{ matrix.make_target }}
