@@ -45,6 +45,11 @@ jobs:
             avalonia-docs/package-lock.json
             offline-app/package-lock.json
 
+      - name: Install Node dependencies
+        run: |
+          npm install --prefix avalonia-docs
+          npm install --prefix offline-app
+
       - name: Install Linux packages
         if: matrix.target == 'linux'
         run: |
