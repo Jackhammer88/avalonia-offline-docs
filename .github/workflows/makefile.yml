@@ -4,8 +4,6 @@ on:
   push:
     branches: ["master", "cicd-setup"]
     tags: ["v*"]
-  pull_request:
-    branches: ["master"]
   workflow_dispatch:
 
 permissions:
