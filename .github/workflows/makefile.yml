@@ -66,6 +66,8 @@ jobs:
           sudo apt-get install -y wine64 wine32:i386 mono-devel
 
       - name: Build
+        env:
+          WINEDEBUG: "-all"
         run: make ${{ matrix.make_target }}
 
       - name: Upload artifact
@@ -74,15 +76,18 @@ jobs:
           name: ${{ matrix.artifact_name }}
           path: ${{ matrix.artifact_path }}
           if-no-files-found: error
+
   release:
     name: Publish release
     needs: build
     runs-on: ubuntu-latest
 
-    # Релиз публикуем только при push тега v*
     if: startsWith(github.ref, 'refs/tags/v')
 
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Download Linux artifact
         uses: actions/download-artifact@v4
         with:
@@ -98,7 +103,7 @@ jobs:
       - name: Check release assets
         run: |
           echo "Release assets:"
-          find release-assets -type f -maxdepth 2 -print
+          find release-assets -maxdepth 2 -type f -print
 
           appimage_count="$(find release-assets -type f -name '*.AppImage' | wc -l)"
           exe_count="$(find release-assets -type f -name '*.exe' | wc -l)"
