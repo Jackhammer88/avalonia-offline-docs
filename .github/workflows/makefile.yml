@@ -1,0 +1,125 @@
+name: Build
+
+on:
+  push:
+    branches: ["master", "cicd-setup"]
+    tags: ["v*"]
+  pull_request:
+    branches: ["master"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: linux
+            os: ubuntu-latest
+            make_target: linux
+            artifact_name: avalonia-docs-linux
+            artifact_path: |
+              offline-app/dist/*.AppImage
+
+          - target: windows
+            os: ubuntu-latest
+            make_target: win
+            artifact_name: avalonia-docs-windows
+            artifact_path: |
+              offline-app/dist/*.exe
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            avalonia-docs/package-lock.json
+            offline-app/package-lock.json
+
+      - name: Install Node dependencies
+        run: |
+          npm install --prefix avalonia-docs
+          npm install --prefix offline-app
+
+      - name: Install Linux packages
+        if: matrix.target == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libfuse2
+
+      - name: Install Windows cross-build packages
+        if: matrix.target == 'windows'
+        run: |
+          sudo dpkg --add-architecture i386
+          sudo apt-get update
+          sudo apt-get install -y wine64 wine32:i386 mono-devel
+
+      - name: Build
+        run: make ${{ matrix.make_target }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: ${{ matrix.artifact_path }}
+          if-no-files-found: error
+  release:
+    name: Publish release
+    needs: build
+    runs-on: ubuntu-latest
+
+    # Релиз публикуем только при push тега v*
+    if: startsWith(github.ref, 'refs/tags/v')
+
+    steps:
+      - name: Download Linux artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: avalonia-docs-linux
+          path: release-assets
+
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: avalonia-docs-windows
+          path: release-assets
+
+      - name: Check release assets
+        run: |
+          echo "Release assets:"
+          find release-assets -type f -maxdepth 2 -print
+
+          appimage_count="$(find release-assets -type f -name '*.AppImage' | wc -l)"
+          exe_count="$(find release-assets -type f -name '*.exe' | wc -l)"
+
+          if [ "$appimage_count" -lt 1 ]; then
+            echo "Missing Linux AppImage"
+            exit 1
+          fi
+
+          if [ "$exe_count" -lt 1 ]; then
+            echo "Missing Windows exe"
+            exit 1
+          fi
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ github.ref_name }}" \
+            release-assets/* \
+            --title "${{ github.ref_name }}" \
+            --generate-notes
